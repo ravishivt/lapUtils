@@ -22,10 +22,10 @@ export interface LapUserCompanyAssociation {
   role: LapRole;
 }
 
-export const getUsersSubDomain = (email: string): string =>
+export const getUserSubDomain = (email: string): string =>
   email.substring(email.lastIndexOf('@') + 1);
 
-const doesCompanyMatchUsersTlds = (company: LapCompany, tlds: Array<string>) => {
+const doesCompanyMatchRATlds = (company: LapCompany, tlds: Array<string>) => {
   const companyTlds = getLapCompanyTlds(company);
   return companyTlds.length > 0 && companyTlds.every(tld => tlds.indexOf(tld) !== -1);
 };
@@ -34,7 +34,7 @@ export const getLapCompanyTlds = (lapCompany: LapCompany): Array<string> => {
   const tlds = [
     ...lapCompany.UsersList.reduce((adminTlds: Set<string>, lapUser) => {
       if (lapUser.Role === 'Admin') {
-        adminTlds.add(getDomain(getUsersSubDomain(lapUser.Email)));
+        adminTlds.add(getDomain(getUserSubDomain(lapUser.Email)));
       }
       return adminTlds;
     }, new Set()),
@@ -49,7 +49,7 @@ export const getLapCompanyTlds = (lapCompany: LapCompany): Array<string> => {
   return tlds;
 };
 
-export const getUsersLapCompany = (
+export const getUserLapCompany = (
   lapApiResponse: Array<LapCompany>,
   userEmail: string,
   rootAccountTlds: Array<string>,
@@ -57,7 +57,7 @@ export const getUsersLapCompany = (
   const companyHash: { [key: number]: LapCompany } = {};
   // Iterate over list of companies and transform it into a list of user-company associations.
   //   Array.reduce + Array.some allows us to "map" and "filter" array in one  iteration instead of two.
-  const usersCompanies = lapApiResponse.reduce(
+  const userCompanies = lapApiResponse.reduce(
     (result: Array<LapUserCompanyAssociation>, lapCompany) => {
       // some - Iterate over company's user list until user is found.
       // Disregard any user-company associations that aren't standard or admin (e.g. reseller).
@@ -80,51 +80,49 @@ export const getUsersLapCompany = (
     },
     [],
   );
-  if (usersCompanies.length > 0) {
-    const usersAdminCompanies = usersCompanies.filter(company => company.role === 'Admin');
+  if (userCompanies.length > 0) {
+    const userAdminCompanies = userCompanies.filter(company => company.role === 'Admin');
     // Companies that user is an ADMIN to take precedence over other associations.
-    if (usersAdminCompanies.length > 0) {
-      if (usersAdminCompanies.length === 1) {
-        if (
-          doesCompanyMatchUsersTlds(companyHash[usersAdminCompanies[0].companyId], rootAccountTlds)
-        ) {
-          return usersAdminCompanies[0];
+    if (userAdminCompanies.length > 0) {
+      if (userAdminCompanies.length === 1) {
+        if (doesCompanyMatchRATlds(companyHash[userAdminCompanies[0].companyId], rootAccountTlds)) {
+          return userAdminCompanies[0];
         } else {
           throw new Error(
             `Error 19-3: User has one LAP company association as ADMIN but that company has TLDs not in the root account's TLDs`,
           );
         }
-      } else if (usersAdminCompanies.length > 1) {
+      } else if (userAdminCompanies.length > 1) {
         throw new Error('Error 19-1: User has multiple LAP company associations as ADMIN');
       }
     }
     // If no ADMIN associations, process the STANDARD associations.
     else {
-      if (usersCompanies.length === 1) {
-        if (doesCompanyMatchUsersTlds(companyHash[usersCompanies[0].companyId], rootAccountTlds)) {
-          return usersCompanies[0];
+      if (userCompanies.length === 1) {
+        if (doesCompanyMatchRATlds(companyHash[userCompanies[0].companyId], rootAccountTlds)) {
+          return userCompanies[0];
         } else {
           throw new Error(
             `Error 19-4: User has one LAP company association as STANDARD but that company has TLDs not in the root account's TLDs`,
           );
         }
       }
-      if (usersCompanies.length > 0) {
+      if (userCompanies.length > 0) {
         //
-        // const usersCompaniesMatchingUsersTlds = usersCompanies.reduce(
+        // const userCompaniesMatchingUserTlds = userCompanies.reduce(
         //   (companies: Array<LapUserCompanyAssociation>, company) => {
-        //     if (doesCompanyMatchUsersTlds(companyHash[company.companyId], rootAccountTlds)) {
+        //     if (doesCompanyMatchRATlds(companyHash[company.companyId], rootAccountTlds)) {
         //       companies.push(company);
         //     }
         //     return companies;
         //   },
         //   [],
         // );
-        const usersCompaniesMatchingUsersTlds = usersCompanies.filter(company =>
-          doesCompanyMatchUsersTlds(companyHash[company.companyId], rootAccountTlds),
+        const userCompaniesMatchingUserTlds = userCompanies.filter(company =>
+          doesCompanyMatchRATlds(companyHash[company.companyId], rootAccountTlds),
         );
-        if (usersCompaniesMatchingUsersTlds.length === 1) {
-          return usersCompaniesMatchingUsersTlds[0];
+        if (userCompaniesMatchingUserTlds.length === 1) {
+          return userCompaniesMatchingUserTlds[0];
         } else {
           throw new Error('Error 19-2: User has multiple LAP company associations as STANDARD');
         }
